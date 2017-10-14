@@ -1,0 +1,185 @@
+#ifndef NewBloomFilter_H
+#define NewBloomFilter_H 
+
+#include "BitSet.h"
+#include "MurmurHash3.h"
+#include<stdio.h>
+#include<string.h>
+#include<time.h>
+#include<stdlib.h>
+#include<iostream>
+using namespace std;
+
+#ifndef Parameter_H
+#define Parameter_H
+//const int N = 10001; // N is represented for New bloomfilter's size 
+const int primeN = 200; // prime array's size
+const int parameterN = 100;
+
+struct ELEMENT{// ELEMENR is represeted for elements' type
+	char* val; // the identified represetation of an element, we use the type int for convenience
+	int category;// which sets the element belong to (begin at 1)
+	ELEMENT(char* v , int c);
+}; 
+
+ELEMENT::ELEMENT(char* v , int c)
+{
+	if(v != NULL)
+	{
+		val = new char[strlen(v)];
+		strcpy(val , v);
+	}
+	else val = NULL;
+	category = c;
+}
+#endif
+
+class NBF{
+	int N;
+
+	BitSet bloomFilter;
+	int K; // the number of hash functions
+	int categoryCodeSize; // the length of the code to classify set
+	int insert_mc , query_mc; //totally memory access of inserting and querying
+public:
+	void insert(ELEMENT element); // insert an element
+	int query(char* element); // query an element
+	NBF();
+	NBF(int k1 , int c1, int N);
+	int get_insert_mc();
+	int get_query_mc();
+	void set_insert_mc(int x);
+	void set_query_mc(int x);
+private:
+	int NearestLarger2Power(int val);
+	int hash_k(ELEMENT element , int k); // the kth hash function
+	void orOperation(int val , int location);
+	int getKthVal(int loc);
+};
+
+
+int NBF::get_insert_mc()
+{
+	return insert_mc;
+}
+
+int NBF::get_query_mc()
+{
+	return query_mc;
+}
+
+void NBF::set_insert_mc(int x)
+{
+	insert_mc = x; 
+}
+
+void NBF::set_query_mc(int x)
+{
+	query_mc = x; 
+}
+
+
+int NBF::NearestLarger2Power(int val)
+{
+	int x = val , ans = 1;
+	while((1<<ans) <= x)
+	{
+		ans++;
+	}
+	return ans;
+}
+	 
+NBF::NBF()
+{
+	cout << "Please input the number of hash functions:" << endl;
+	cin >> K;
+	cout << "Please input the total number of groups:" << endl;
+	cin >> categoryCodeSize;
+	cout << "Please input the number of bits:" << endl;
+	cin >> N;
+
+	categoryCodeSize = NearestLarger2Power(categoryCodeSize);
+	bloomFilter.create_ary(N);
+}
+
+NBF::NBF(int k1 , int c1, int _N)
+{
+	K = k1;
+	categoryCodeSize = c1;
+	N = _N;
+
+	categoryCodeSize = NearestLarger2Power(categoryCodeSize);
+	bloomFilter.create_ary(N);
+}
+	
+int NBF::hash_k(ELEMENT element , int k)//the kth hash function
+{
+	unsigned int ans = 0;
+	MurmurHash3_x86_32((void *)element.val , strlen(element.val) , k , &ans);
+	//cout << endl << "***  " << ans%N << "  ***" <<endl;
+	return ans % N;
+}
+	
+void NBF::orOperation(int val , int location)
+{
+	int i = 1;
+	while(val > 0)
+	{
+		if(val % 2 == 1)bloomFilter.set_1( (location + categoryCodeSize - i) % N );
+		val >>= 1;
+		++i;
+	} 
+}
+	
+void NBF::insert(ELEMENT element)//insert an element
+{
+	//cout << "&&&  ";
+	for(int i = 0 ; i < K ; ++i)
+	{
+		//cout << hash_k(element , i) << " , " ;
+		int _p = hash_k(element , i);
+		insert_mc += bloomFilter.query_memory(_p , categoryCodeSize);
+		orOperation( element.category , _p );
+	}
+	//cout << " &&& " << endl;
+}
+	
+int NBF::getKthVal(int loc)
+{
+	int ans = 0 ;
+	for(int i = 0 ; i < categoryCodeSize ; ++i)
+	{
+		if(bloomFilter.query((loc + categoryCodeSize - i - 1)%N) == 1)
+		ans += (1 << i) ;
+	}
+	return ans;
+}
+	
+int NBF::query(char* element)//query an element
+{
+	int ans = (1 << categoryCodeSize) - 1;
+	for(int i = 0 ; i < K ; ++i)
+	{
+		int _p = hash_k(ELEMENT(element , 0), i);
+		query_mc += bloomFilter.query_memory(_p , categoryCodeSize);
+		ans &= getKthVal( _p);
+	}
+	return ans;
+}
+	
+#endif	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
